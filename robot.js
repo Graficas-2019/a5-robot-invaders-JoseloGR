@@ -2,18 +2,36 @@ var renderer = null,
 scene = null, 
 camera = null,
 root = null,
+robot_idle = null,
+robot_attack = null,
 horse = null,
-parrot = null,
-flamingo = null,
-stork = null,
 group = null,
 orbitControls = null,
 mixer = null;
 
+var robot_mixer = {};
 var morphs = [];
 
 var duration = 20000; // ms
 var currentTime = Date.now();
+var animation = "walk";
+
+
+function changeAnimation(animation_text) {
+    animation = animation_text;
+
+    if(animation =="dead") {
+        createDeadAnimation();
+    }
+    else {
+        robot_idle.rotation.x = 0;
+        robot_idle.position.y = -4;
+    }
+}
+
+function createDeadAnimation(){
+    console.log('dead');
+}
 
 function loadGLTF()
 {
@@ -34,22 +52,70 @@ function loadGLTF()
     } );
 }
 
+function loadFBX() {
+    var loader = new THREE.FBXLoader();
+    loader.load( 'models/Robot/robot_idle.fbx', function ( object ) 
+    {
+        robot_mixer["idle"] = new THREE.AnimationMixer( scene );
+        object.scale.set(0.02, 0.02, 0.02);
+        object.position.y -= 4;
+        object.position.z = -50 - Math.random() * 50;
+        object.traverse( function ( child ) {
+            if ( child.isMesh ) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        } );
+        robot_idle = object;
+        scene.add( robot_idle );
+        
+        createDeadAnimation();
+
+        robot_mixer["idle"].clipAction( object.animations[ 0 ], robot_idle ).play();
+
+        loader.load('models/Robot/robot_atk.fbx', function ( object ) 
+        {
+            robot_mixer["attack"] = new THREE.AnimationMixer( scene );
+            robot_mixer["attack"].clipAction( object.animations[ 0 ], robot_idle ).play();
+        } );
+
+        loader.load('models/Robot/robot_run.fbx', function ( object ) 
+        {
+            robot_mixer["run"] = new THREE.AnimationMixer( scene );
+            robot_mixer["run"].clipAction( object.animations[ 0 ], robot_idle ).play();
+        } );
+
+        loader.load('models/Robot/robot_walk.fbx', function ( object ) 
+        {
+            robot_mixer["walk"] = new THREE.AnimationMixer( scene );
+            robot_mixer["walk"].clipAction( object.animations[ 0 ], robot_idle ).play();
+        } );
+    } );
+}
+
 function animate() {
 
     var now = Date.now();
     var deltat = now - currentTime;
     currentTime = now;
 
-    if ( mixer ) {
-        mixer.update( deltat * 0.001 );
+    if(robot_idle && robot_mixer[animation]) {
+        robot_mixer[animation].update(deltat * 0.001);
     }
 
-    for(var morph of morphs)
-    {
-        morph.position.z += 0.03 * deltat;
-        if(morph.position.z > 40)
-            morph.position.z = -70 - Math.random() * 50;
+    if(animation =="dead") {
+        KF.update();
     }
+
+    robot_idle.position.z += 0.006 * deltat;
+    if(robot_idle.position.z > 40) {
+        changeAnimation("attack");
+        setTimeout(() => {
+            robot_idle.position.z = -70 - Math.random() * 50;
+            changeAnimation("walk");
+        }, 2000);
+    }
+    
 }
 
 function run() {
@@ -125,7 +191,7 @@ function createScene(canvas) {
     root.add(ambientLight);
     
     // Create the objects
-    loadGLTF();
+    loadFBX();
 
     // Create a group to hold the objects
     group = new THREE.Object3D;
