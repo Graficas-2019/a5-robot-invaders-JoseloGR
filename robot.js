@@ -1,7 +1,7 @@
 var isGameRunning = false, 
 score = 0, 
 ROBOT = 0,
-LIMIT_ROBOTS = 10,
+LIMIT_ROBOTS = 1,
 ROBOTS_IN_ACTION = 0;
 
 var renderer = null, 
@@ -13,6 +13,7 @@ group = null;
 
 var robots = [];
 var currentTime = Date.now();
+var clock = null;
 var raycaster;
 var mouse = new THREE.Vector2(), INTERSECTED, CLICKED;
 
@@ -31,6 +32,7 @@ function startGame() {
         score= 0;
         ROBOT = 0;
         ROBOTS_IN_ACTION = 0;
+        clock = new THREE.Clock();
         isGameRunning = true;
     }
 }
@@ -67,6 +69,7 @@ function loadFBX() {
         object.scale.set(0.02, 0.02, 0.02);
         object.position.y -= 4;
         object.position.z = -50 - Math.random() * 50;
+        object.rotation.set(0,0,0);
         
 
         object.traverse( function ( child ) {
@@ -88,7 +91,6 @@ function loadFBX() {
             robot.mixer["dead"] = new THREE.AnimationMixer( scene );
             robot.mixer["dead"].clipAction( object.animations[ 0 ], robot ).play();
         } );
-        console.log(object);
         
         robots.push(robot);
         scene.add( object );
@@ -98,17 +100,12 @@ function loadFBX() {
 function clone() {
     var new_robot = cloneFbx(robot);
     new_robot.position.set(Math.random() * (100 - (-100)) + (-100), -4, -70 - Math.random() * 50);
+    new_robot.rotation.set(0,0,0);
 
     new_robot.name = ++ROBOT;
     new_robot.mixer = {};
     new_robot.mixer["walk"] =  new THREE.AnimationMixer( scene );
     new_robot.mixer["walk"].clipAction( new_robot.animations[ 0 ], new_robot ).play();
-
-    new_robot.mixer["attack"] =  new THREE.AnimationMixer( scene );
-    new_robot.mixer["attack"].clipAction( new_robot.animations[ 0 ], new_robot ).play();
-
-    new_robot.mixer["dead"] =  new THREE.AnimationMixer( scene );
-    new_robot.mixer["dead"].clipAction( new_robot.animations[ 0 ], new_robot ).play();
 
     scene.add(new_robot);
     robots.push(new_robot);
@@ -119,10 +116,18 @@ function animate() {
     if (isGameRunning) {
         var now = Date.now();
         var deltat = now - currentTime;
+        var delta = clock.getDelta() * 1000;
         currentTime = now;
+        var seconds = parseInt(60 - clock.elapsedTime);
 
-        if (ROBOTS_IN_ACTION < LIMIT_ROBOTS && (robots.length < LIMIT_ROBOTS && robots.length > 0)) {
-            clone();
+        if (seconds > 0) {
+            console.log(seconds);
+            if (seconds % 5 == 0) {
+                clone();
+            }
+        } else {
+            seconds = 0;
+            isGameRunning = false;
         }
 
         if (robots.length > 0) {
@@ -131,27 +136,21 @@ function animate() {
                     robot_i.mixer["walk"].update(deltat * 0.001);
                     robot_i.position.z += 0.005 * deltat;
                     if (robot_i.position.z > 40) {
-                        robot_i.mixer["attack"].update(deltat * 0.001);
-                        setTimeout(() => {
-                            robots.splice(robot_i.name, 1);
-                            --score;
-                            --ROBOTS_IN_ACTION;
-                            scene.remove(robot_i)
-                            //robot_i.mixer["walk"].update(deltat * 0.001);
-                            //robot_i.position.z = -70 - Math.random() * 50;
-                        }, 1000);
+                        scene.remove(robots[robot_i.name]);
+                        //robot_i.mixer["attack"].update(deltat * 0.001);
+                        // setTimeout(() => {
+                        //     robot_i.mixer["walk"].update(deltat * 0.001);
+                        //     robot_i.position.z = -70 - Math.random() * 50;
+                        // }, 1000);
                     }
                 } else {
-                    robot_i.mixer["dead"].update(deltat * 0.001);
-                    robots.splice(robot_i.name, 1);
-                    ++score;
-                    --ROBOTS_IN_ACTION;
-                    scene.remove(robot_i);
+                    scene.remove(robots[robot_i.name]);
+                    //robot_i.mixer["dead"].update(deltat * 0.001);
+                    //robots.splice(robot_i.name, 1);
                 }
             }
         }
         KF.update();
-        console.log(score);
     }
 }
 
@@ -257,9 +256,7 @@ function onDocumentMouseDown(event) {
     var intersects = raycaster.intersectObjects( scene.children, true );
 
     if ( isGameRunning && intersects.length > 0 ) {
-        console.log(intersects);
         CLICKED = intersects[ 0 ].object;
-        console.log(CLICKED);
         if (!animator.running) {
             for(var i = 0; i<= animator.interps.length -1; i++) {
                 CLICKED.parent.knockout = true;
