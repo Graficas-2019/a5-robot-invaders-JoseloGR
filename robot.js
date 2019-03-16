@@ -1,7 +1,7 @@
 var isGameRunning = false, 
 score = 0, 
 ROBOT = 0,
-LIMIT_ROBOTS = 1,
+LIMIT_ROBOTS = 10,
 ROBOTS_IN_ACTION = 0;
 
 var renderer = null, 
@@ -107,9 +107,11 @@ function clone() {
     new_robot.mixer["walk"] =  new THREE.AnimationMixer( scene );
     new_robot.mixer["walk"].clipAction( new_robot.animations[ 0 ], new_robot ).play();
 
-    scene.add(new_robot);
-    robots.push(new_robot);
-    ROBOTS_IN_ACTION++;
+    if (robots.length < LIMIT_ROBOTS) {
+        scene.add(new_robot);
+        robots.push(new_robot);
+        ROBOTS_IN_ACTION++;
+    }
 }
 
 function animate() {
@@ -118,7 +120,7 @@ function animate() {
         var deltat = now - currentTime;
         var delta = clock.getDelta() * 1000;
         currentTime = now;
-        var seconds = parseInt(60 - clock.elapsedTime);
+        var seconds = parseInt(30 - clock.elapsedTime);
 
         if (seconds > 0) {
             console.log(seconds);
