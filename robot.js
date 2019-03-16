@@ -1,154 +1,175 @@
+var isGameRunning = false, 
+score = 0, 
+ROBOT = 0,
+LIMIT_ROBOTS = 10,
+ROBOTS_IN_ACTION = 0;
+
 var renderer = null, 
 scene = null, 
 camera = null,
 root = null,
-robot_idle = null,
-robot_attack = null,
-horse = null,
-group = null,
-orbitControls = null,
-mixer = null;
+robot = null,
+group = null;
 
-var robot_mixer = {};
-var morphs = [];
-
-var duration = 20000; // ms
+var robots = [];
 var currentTime = Date.now();
-var animation = "walk";
+var raycaster;
+var mouse = new THREE.Vector2(), INTERSECTED, CLICKED;
 
-
-function changeAnimation(animation_text) {
-    animation = animation_text;
-
-    if(animation =="dead") {
-        createDeadAnimation();
-    }
-    else {
-        robot_idle.rotation.x = 0;
-        robot_idle.position.y = -4;
-    }
-}
-
-function createDeadAnimation(){
-    console.log('dead');
-}
-
-function loadGLTF()
-{
-    mixer = new THREE.AnimationMixer( scene );
-
-    var loader = new THREE.GLTFLoader();
-    loader.load( "models/Horse.glb", function( gltf ) {
-        horse = gltf.scene.children[ 0 ];
-        horse.scale.set( 0.05, 0.05, 0.05 );
-        horse.position.y -= 4;
-        horse.position.z = -50 - Math.random() * 50;
-        horse.castShadow = true;
-        horse. receiveShadow = true;
-        scene.add( horse );
-        morphs.push(horse);
-        mixer.clipAction( gltf.animations[ 0 ], horse).setDuration( 0.5 ).play();
-        console.log(gltf.animations);
-    } );
-}
-
-function loadFBX() {
-    var loader = new THREE.FBXLoader();
-    loader.load( 'models/Robot/robot_idle.fbx', function ( object ) 
-    {
-        robot_mixer["idle"] = new THREE.AnimationMixer( scene );
-        object.scale.set(0.02, 0.02, 0.02);
-        object.position.y -= 4;
-        object.position.z = -50 - Math.random() * 50;
-        object.traverse( function ( child ) {
-            if ( child.isMesh ) {
-                child.castShadow = true;
-                child.receiveShadow = true;
-            }
-        } );
-        robot_idle = object;
-        scene.add( robot_idle );
-        
-        createDeadAnimation();
-
-        robot_mixer["idle"].clipAction( object.animations[ 0 ], robot_idle ).play();
-
-        loader.load('models/Robot/robot_atk.fbx', function ( object ) 
-        {
-            robot_mixer["attack"] = new THREE.AnimationMixer( scene );
-            robot_mixer["attack"].clipAction( object.animations[ 0 ], robot_idle ).play();
-        } );
-
-        loader.load('models/Robot/robot_run.fbx', function ( object ) 
-        {
-            robot_mixer["run"] = new THREE.AnimationMixer( scene );
-            robot_mixer["run"].clipAction( object.animations[ 0 ], robot_idle ).play();
-        } );
-
-        loader.load('models/Robot/robot_walk.fbx', function ( object ) 
-        {
-            robot_mixer["walk"] = new THREE.AnimationMixer( scene );
-            robot_mixer["walk"].clipAction( object.animations[ 0 ], robot_idle ).play();
-        } );
-    } );
-}
-
-function animate() {
-
-    var now = Date.now();
-    var deltat = now - currentTime;
-    currentTime = now;
-
-    if(robot_idle && robot_mixer[animation]) {
-        robot_mixer[animation].update(deltat * 0.001);
-    }
-
-    if(animation =="dead") {
-        KF.update();
-    }
-
-    robot_idle.position.z += 0.006 * deltat;
-    if(robot_idle.position.z > 40) {
-        changeAnimation("attack");
-        setTimeout(() => {
-            robot_idle.position.z = -70 - Math.random() * 50;
-            changeAnimation("walk");
-        }, 2000);
-    }
-    
-}
-
-function run() {
-    requestAnimationFrame(function() { run(); });
-    
-        // Render the scene
-        renderer.render( scene, camera );
-
-        // Spin the cube for next frame
-        animate();
-
-        // Update the camera controller
-        orbitControls.update();
-}
-
-function setLightColor(light, r, g, b)
-{
-    r /= 255;
-    g /= 255;
-    b /= 255;
-    
-    light.color.setRGB(r, g, b);
-}
+var animator = null,
+durationAnimation = 2, // sec
+loopAnimation = false;
 
 var directionalLight = null;
 var spotLight = null;
 var ambientLight = null;
 var mapUrl = "images/checker_large.gif";
-
 var SHADOW_MAP_WIDTH = 2048, SHADOW_MAP_HEIGHT = 2048;
 
-function createScene(canvas) {
+function startGame() {
+    if (!isGameRunning) {
+        score= 0;
+        ROBOT = 0;
+        ROBOTS_IN_ACTION = 0;
+        isGameRunning = true;
+    }
+}
+
+function createDeadAnimation() {
+    animator = new KF.KeyFrameAnimator;
+    animator.init({ 
+        interps:
+            [
+                { 
+                    keys:[0, .5, 1], 
+                    values:[
+                            { x : 0,            },
+                            { x : - Math.PI / 4 },
+                            { x : - Math.PI / 2 },
+                    ],
+                },
+            ],
+        loop: loopAnimation,
+        duration: durationAnimation * 1000,
+    });
+}
+
+function loadFBX() {
+    var loader = new THREE.FBXLoader();
+    loader.load( 'models/Robot/robot_walk.fbx', function ( object ) {
+        object.mixer = {};
+        object.mixer["walk"] = new THREE.AnimationMixer( scene );
+        object.mixer["walk"].clipAction( object.animations[ 0 ], object ).play();
+
+        object.knockout = false;
+        object.name = ROBOT;
+        
+        object.scale.set(0.02, 0.02, 0.02);
+        object.position.y -= 4;
+        object.position.z = -50 - Math.random() * 50;
+        
+
+        object.traverse( function ( child ) {
+            if ( child.isMesh ) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+
+        robot = object;
+        createDeadAnimation();
+
+        loader.load('models/Robot/robot_atk.fbx', function ( object ) {
+            robot.mixer["attack"] = new THREE.AnimationMixer( scene );
+            robot.mixer["attack"].clipAction( object.animations[ 0 ], robot ).play();
+        });
+
+        loader.load('models/Robot/robot_atk2.fbx', function ( object ) {
+            robot.mixer["dead"] = new THREE.AnimationMixer( scene );
+            robot.mixer["dead"].clipAction( object.animations[ 0 ], robot ).play();
+        } );
+        console.log(object);
+        
+        robots.push(robot);
+        scene.add( object );
+    } );
+}
+
+function clone() {
+    var new_robot = cloneFbx(robot);
+    new_robot.position.set(Math.random() * (100 - (-100)) + (-100), -4, -70 - Math.random() * 50);
+
+    new_robot.name = ++ROBOT;
+    new_robot.mixer = {};
+    new_robot.mixer["walk"] =  new THREE.AnimationMixer( scene );
+    new_robot.mixer["walk"].clipAction( new_robot.animations[ 0 ], new_robot ).play();
+
+    new_robot.mixer["attack"] =  new THREE.AnimationMixer( scene );
+    new_robot.mixer["attack"].clipAction( new_robot.animations[ 0 ], new_robot ).play();
+
+    new_robot.mixer["dead"] =  new THREE.AnimationMixer( scene );
+    new_robot.mixer["dead"].clipAction( new_robot.animations[ 0 ], new_robot ).play();
+
+    scene.add(new_robot);
+    robots.push(new_robot);
+    ROBOTS_IN_ACTION++;
+}
+
+function animate() {
+    if (isGameRunning) {
+        var now = Date.now();
+        var deltat = now - currentTime;
+        currentTime = now;
+
+        if (ROBOTS_IN_ACTION < LIMIT_ROBOTS && (robots.length < LIMIT_ROBOTS && robots.length > 0)) {
+            clone();
+        }
+
+        if (robots.length > 0) {
+            for (robot_i of robots) {
+                if (!robot_i.knockout) {
+                    robot_i.mixer["walk"].update(deltat * 0.001);
+                    robot_i.position.z += 0.005 * deltat;
+                    if (robot_i.position.z > 40) {
+                        robot_i.mixer["attack"].update(deltat * 0.001);
+                        setTimeout(() => {
+                            robots.splice(robot_i.name, 1);
+                            --score;
+                            --ROBOTS_IN_ACTION;
+                            scene.remove(robot_i)
+                            //robot_i.mixer["walk"].update(deltat * 0.001);
+                            //robot_i.position.z = -70 - Math.random() * 50;
+                        }, 1000);
+                    }
+                } else {
+                    robot_i.mixer["dead"].update(deltat * 0.001);
+                    robots.splice(robot_i.name, 1);
+                    ++score;
+                    --ROBOTS_IN_ACTION;
+                    scene.remove(robot_i);
+                }
+            }
+        }
+        KF.update();
+        console.log(score);
+    }
+}
+
+function playAnimations() {
+    animator.start();
+}
+
+function run() {
+    requestAnimationFrame(function() { run(); });
     
+    // Render the scene
+    renderer.render( scene, camera );
+
+    // Spin the cube for next frame
+    animate();
+}
+
+function createScene(canvas) {
     // Create the Three.js renderer and attach it to our canvas
     renderer = new THREE.WebGLRenderer( { canvas: canvas, antialias: true } );
 
@@ -165,10 +186,9 @@ function createScene(canvas) {
 
     // Add  a camera so we can view the scene
     camera = new THREE.PerspectiveCamera( 45, canvas.width / canvas.height, 1, 4000 );
-    camera.position.set(0, 10, 60);
+    camera.position.set(0, 30, 100);
+    camera.rotation.set(-Math.PI/8, 0,0);
     scene.add(camera);
-
-    orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
         
     // Create a group to hold all the objects
     root = new THREE.Object3D;
@@ -179,11 +199,9 @@ function createScene(canvas) {
     root.add(spotLight);
 
     spotLight.castShadow = true;
-
     spotLight.shadow.camera.near = 1;
     spotLight.shadow.camera.far = 200;
     spotLight.shadow.camera.fov = 45;
-    
     spotLight.shadow.mapSize.width = SHADOW_MAP_WIDTH;
     spotLight.shadow.mapSize.height = SHADOW_MAP_HEIGHT;
 
@@ -215,7 +233,41 @@ function createScene(canvas) {
     group.add( mesh );
     mesh.castShadow = false;
     mesh.receiveShadow = true;
-    
+
     // Now add the group to our scene
     scene.add( root );
+
+    // Create a raycaster to detect the intersections of the mouse pointer
+    raycaster = new THREE.Raycaster();
+    
+    // Function to execute when clicking
+    document.addEventListener('mousedown', onDocumentMouseDown);
+}
+
+function onDocumentMouseDown(event) {
+    event.preventDefault();
+    event.preventDefault();
+    mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+    mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+
+    // Pass coords of mouse to camera
+    raycaster.setFromCamera( mouse, camera );
+
+    // Detect all objects intersected
+    var intersects = raycaster.intersectObjects( scene.children, true );
+
+    if ( isGameRunning && intersects.length > 0 ) {
+        console.log(intersects);
+        CLICKED = intersects[ 0 ].object;
+        console.log(CLICKED);
+        if (!animator.running) {
+            for(var i = 0; i<= animator.interps.length -1; i++) {
+                CLICKED.parent.knockout = true;
+                animator.interps[i].target = robots[CLICKED.parent.name].rotation;
+            }
+            playAnimations();
+        }
+    } else {
+        CLICKED = null;
+    }
 }

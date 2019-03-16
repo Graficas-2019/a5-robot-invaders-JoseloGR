@@ -4,7 +4,6 @@
 <title>Robot Rush</title>
 
 <link rel="stylesheet" href="../libs/jquery-ui/jquery-ui.css" />
-<link rel="stylesheet" href="../libs/colorpicker/css/colorpicker.css" />
 <link rel="stylesheet" href="css/main.css" />
 <link rel="stylesheet" href="css/threejsshadows.css" />
 
@@ -13,30 +12,26 @@
 
 <script src="../libs/three.js/three.js"></script>
 <script src="../libs/three.js/controls/OrbitControls.js"></script>
-<script src="../libs/colorpicker/js/colorpicker.js"></script>
 
-<script src="../libs/three.js/loaders/GLTFLoader.js"></script>
 <script src="../libs/three.js/loaders/inflate.min.js"></script>
 <script src="../libs/three.js/loaders/FBXLoader.js"></script>
+<script src="../libs/three.js/utils/cloneFBX.js"></script>
 
+<script src="../libs/tween.js/tween.js"></script>
 <script src="../libs/keyframe.js/keyframe.js"></script>
 
 <script src="robot.js"></script>
-<!-- <script src="ui.js"></script> -->
+<script src="controls.js"></script>
 
 <script type="text/javascript">
   
 	$(document).ready(
 			function() {
-
 				var canvas = document.getElementById("webglcanvas");
-
 				// create the scene
 				createScene(canvas);
-
-				// initialize the controls
-				//initControls();
-				
+				// initialize controls
+				initControls();
 		        // Run the run loop
 		        run();
 			}
@@ -48,5 +43,12 @@
 <body>
     <div id="container">
         <canvas id="webglcanvas"></canvas>
-    </div>
+	</div>
+	<div class='game_loader'>
+		<div class='game_loader__inner'>
+			<button class="btn start" 
+					id="start">Start Game
+			</button>
+		</div>
+	</div>
 </html>
